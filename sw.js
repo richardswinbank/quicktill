@@ -1,5 +1,5 @@
 // Caches the app so it works with no signal. Bump the version to force an update.
-const CACHE = 'quicktill-v2';
+const CACHE = 'quicktill-v3';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

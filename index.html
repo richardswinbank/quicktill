@@ -33,6 +33,7 @@
   main { flex: 1; overflow-y: auto; padding: 10px; }
   section[hidden] { display: none; }
   .hint { color: var(--muted); text-align: center; padding: 30px 10px; }
+  .hint a { color: inherit; font-weight: 700; }
 
   /* Till */
   #tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -107,7 +108,7 @@
 <main>
   <section id="till">
     <div id="tiles"></div>
-    <p class="hint" id="noitems" hidden>No items yet. Add some in Setup.</p>
+    <p class="hint" id="noitems" hidden>No items yet. Add some in <a href="#" id="gosetup">Setup</a>.</p>
   </section>
 
   <section id="totals" hidden>
@@ -332,6 +333,7 @@ function toast(msg) {
 }
 
 for (const b of document.querySelectorAll('nav button')) b.onclick = () => showTab(b.dataset.tab);
+$('gosetup').onclick = e => { e.preventDefault(); showTab('setup'); };
 showTab(items.length ? 'till' : 'setup');
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
