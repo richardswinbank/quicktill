@@ -87,6 +87,14 @@
     padding: 10px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap;
   }
   #toast.show { opacity: .92; }
+
+  #ask { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 20px; z-index: 10; }
+  #ask[hidden] { display: none; }
+  #ask .box { background: var(--panel); border-radius: 16px; padding: 18px; width: 100%; max-width: 340px; }
+  #ask p { margin: 0 0 16px; font-size: 18px; }
+  #ask .actions button { flex: 1; }
+  #askno { background: var(--muted); }
+  #askyes { background: var(--danger); }
 </style>
 </head>
 <body>
@@ -127,6 +135,15 @@
   </div>
 </footer>
 <div id="toast"></div>
+<div id="ask" hidden>
+  <div class="box">
+    <p id="askmsg"></p>
+    <div class="actions">
+      <button id="askno">Cancel</button>
+      <button id="askyes"></button>
+    </div>
+  </div>
+</div>
 
 <script>
 const COLOURS = ['#2f5d8a', '#a23b3b', '#3d7a4a', '#8a5a1f', '#6a4c93', '#1f7a7a', '#b0472e', '#4a5568'];
@@ -141,6 +158,18 @@ let items = load('qt.items', []);                        // [{id, name, price}]
 let cart = load('qt.cart', {});                          // id -> qty
 let totals = load('qt.totals', { sales: 0, lines: {} }); // lines: id -> {name, qty, value}
 let lastSale = load('qt.last', null);                    // [{id, name, qty, value}]
+
+// In-page replacement for confirm(), which is suppressed in some installed/embedded browsers.
+function ask(msg, yesLabel) {
+  $('askmsg').textContent = msg;
+  $('askyes').textContent = yesLabel;
+  $('ask').hidden = false;
+  return new Promise(resolve => {
+    const close = answer => { $('ask').hidden = true; resolve(answer); };
+    $('askyes').onclick = () => close(true);
+    $('askno').onclick = () => close(false);
+  });
+}
 
 function showTab(tab) {
   for (const s of document.querySelectorAll('section')) s.hidden = s.id !== tab;
@@ -228,10 +257,10 @@ function renderTotals() {
   $('undo').disabled = !lastSale;
 }
 
-$('undo').onclick = () => {
+$('undo').onclick = async () => {
   if (!lastSale) return;
   const value = lastSale.reduce((s, l) => s + l.value, 0);
-  if (!confirm('Remove the last sale (' + money(value) + ') from the totals?')) return;
+  if (!await ask('Remove the last sale (' + money(value) + ') from the totals?', 'Remove')) return;
   for (const l of lastSale) {
     const line = totals.lines[l.id];
     if (!line) continue;
@@ -245,8 +274,8 @@ $('undo').onclick = () => {
   renderTotals();
 };
 
-$('reset').onclick = () => {
-  if (!confirm('Clear all recorded sales? Your items and prices are kept.')) return;
+$('reset').onclick = async () => {
+  if (!await ask('Clear all recorded sales? Your items and prices are kept.', 'Reset')) return;
   totals = { sales: 0, lines: {} };
   lastSale = null;
   save('qt.totals', totals); save('qt.last', lastSale);
@@ -275,9 +304,9 @@ function renderSetup() {
     up.onclick = () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; save('qt.items', items); renderSetup(); };
     const del = el('button', 'del', '✕');
     del.setAttribute('aria-label', 'Delete');
-    del.onclick = () => {
-      if (it.name && !confirm('Delete "' + it.name + '"?')) return;
-      items.splice(i, 1);
+    del.onclick = async () => {
+      if (it.name && !await ask('Delete "' + it.name + '"?', 'Delete')) return;
+      items.splice(items.indexOf(it), 1);
       delete cart[it.id];
       save('qt.items', items); save('qt.cart', cart);
       renderSetup();
