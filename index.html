@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1f2a44">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Quicktill">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Quicktill</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --fg: #1c1c1c; --muted: #6b6b6b; --panel: #fff; --line: #ddd8cc;
+    --bar: #1f2a44; --bar-fg: #fff; --ok: #1f7a4d; --danger: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161b; --fg: #f0f0f0; --muted: #9a9a9a; --panel: #1f232b; --line: #343a46; --bar: #0d1017; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
+    font: 16px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action: manipulation; }
+  nav { display: flex; background: var(--bar); }
+  nav button { flex: 1; padding: 12px 0; background: none; color: var(--bar-fg); opacity: .6; font-weight: 600; border-bottom: 3px solid transparent; }
+  nav button.on { opacity: 1; border-bottom-color: #fff; }
+  main { flex: 1; overflow-y: auto; padding: 10px; }
+  section[hidden] { display: none; }
+  .hint { color: var(--muted); text-align: center; padding: 30px 10px; }
+
+  /* Till */
+  #tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { position: relative; }
+  .tile .add {
+    width: 100%; min-height: 112px; padding: 10px; border-radius: 14px; color: #fff; text-align: left;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    box-shadow: 0 2px 0 rgba(0,0,0,.25);
+  }
+  .tile .add:active { transform: translateY(2px); box-shadow: none; filter: brightness(.9); }
+  .tile .name { font-weight: 600; font-size: 17px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding-right: 30px; }
+  .tile .price { font-size: 22px; font-weight: 700; }
+  .tile .qty {
+    position: absolute; top: 8px; right: 8px; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px;
+    background: #fff; color: #111; font-weight: 800; display: grid; place-items: center; pointer-events: none;
+  }
+  .tile .minus {
+    position: absolute; bottom: 8px; right: 8px; width: 44px; height: 44px; border-radius: 22px;
+    background: rgba(0,0,0,.35); color: #fff; font-size: 26px; font-weight: 700; line-height: 1;
+  }
+  footer { background: var(--bar); color: var(--bar-fg); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  #summary { display: flex; justify-content: space-between; align-items: baseline; }
+  #count { opacity: .75; }
+  #total { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; gap: 10px; margin-top: 6px; }
+  .actions button { padding: 14px; border-radius: 12px; font-weight: 700; font-size: 18px; color: #fff; }
+  #clear { flex: 1; background: rgba(255,255,255,.18); }
+  #done { flex: 2; background: var(--ok); }
+  .actions button:disabled { opacity: .4; }
+
+  /* Setup */
+  .row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .row input { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 10px; min-width: 0; user-select: text; -webkit-user-select: text; }
+  .row .n { flex: 1; }
+  .row .p { width: 84px; text-align: right; }
+  .row button { width: 40px; height: 44px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 18px; }
+  .row .del { color: var(--danger); }
+  .wide { width: 100%; padding: 14px; border-radius: 12px; font-weight: 700; background: var(--bar); color: #fff; margin-top: 6px; }
+  .wide.alt { background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
+  .wide.warn { background: var(--panel); color: var(--danger); border: 1px solid var(--danger); }
+  .wide:disabled { opacity: .4; }
+
+  /* Totals */
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; margin-bottom: 10px; }
+  th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tfoot td { font-weight: 800; border-bottom: 0; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 190px; transform: translateX(-50%); background: #111; color: #fff;
+    padding: 10px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+<nav>
+  <button data-tab="till">Till</button>
+  <button data-tab="totals">Totals</button>
+  <button data-tab="setup">Setup</button>
+</nav>
+
+<main>
+  <section id="till">
+    <div id="tiles"></div>
+    <p class="hint" id="noitems" hidden>No items yet. Add some in Setup.</p>
+  </section>
+
+  <section id="totals" hidden>
+    <table>
+      <thead><tr><th>Item</th><th class="r">Sold</th><th class="r">Value</th></tr></thead>
+      <tbody id="trows"></tbody>
+      <tfoot><tr><td id="tsales"></td><td class="r" id="tqty"></td><td class="r" id="tvalue"></td></tr></tfoot>
+    </table>
+    <button class="wide alt" id="undo">Undo last sale</button>
+    <button class="wide warn" id="reset">Reset totals for a new event</button>
+  </section>
+
+  <section id="setup" hidden>
+    <div id="rows"></div>
+    <button class="wide" id="additem">+ Add item</button>
+    <p class="hint">Changes are saved automatically on this phone.</p>
+  </section>
+</main>
+
+<footer id="bar">
+  <div id="summary"><span id="count"></span><span id="total"></span></div>
+  <div class="actions">
+    <button id="clear">Clear</button>
+    <button id="done">Done</button>
+  </div>
+</footer>
+<div id="toast"></div>
+
+<script>
+const COLOURS = ['#2f5d8a', '#a23b3b', '#3d7a4a', '#8a5a1f', '#6a4c93', '#1f7a7a', '#b0472e', '#4a5568'];
+const $ = id => document.getElementById(id);
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+const money = p => '£' + (p / 100).toFixed(2);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+// All prices are held in pence.
+let items = load('qt.items', []);                        // [{id, name, price}]
+let cart = load('qt.cart', {});                          // id -> qty
+let totals = load('qt.totals', { sales: 0, lines: {} }); // lines: id -> {name, qty, value}
+let lastSale = load('qt.last', null);                    // [{id, name, qty, value}]
+
+function showTab(tab) {
+  for (const s of document.querySelectorAll('section')) s.hidden = s.id !== tab;
+  for (const b of document.querySelectorAll('nav button')) b.classList.toggle('on', b.dataset.tab === tab);
+  $('bar').hidden = tab !== 'till';
+  if (tab === 'till') renderTill();
+  if (tab === 'totals') renderTotals();
+  if (tab === 'setup') renderSetup();
+}
+
+// ---- Till ----
+function renderTill() {
+  const tiles = $('tiles');
+  tiles.replaceChildren();
+  $('noitems').hidden = items.length > 0;
+  let total = 0, count = 0;
+  items.forEach((it, i) => {
+    const qty = cart[it.id] || 0;
+    total += qty * it.price;
+    count += qty;
+    const tile = el('div', 'tile');
+    const add = el('button', 'add');
+    add.style.background = COLOURS[i % COLOURS.length];
+    add.append(el('span', 'name', it.name || 'Untitled'), el('span', 'price', money(it.price)));
+    add.onclick = () => change(it.id, 1);
+    tile.append(add);
+    if (qty) {
+      tile.append(el('span', 'qty', qty));
+      const minus = el('button', 'minus', '−');
+      minus.setAttribute('aria-label', 'Remove one');
+      minus.onclick = () => change(it.id, -1);
+      tile.append(minus);
+    }
+    tiles.append(tile);
+  });
+  $('total').textContent = money(total);
+  $('count').textContent = count === 1 ? '1 item' : count + ' items';
+  $('clear').disabled = $('done').disabled = count === 0;
+}
+
+function change(id, delta) {
+  const qty = (cart[id] || 0) + delta;
+  if (qty > 0) cart[id] = qty; else delete cart[id];
+  save('qt.cart', cart);
+  renderTill();
+}
+
+$('clear').onclick = () => { cart = {}; save('qt.cart', cart); renderTill(); };
+
+$('done').onclick = () => {
+  const sale = items.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, qty: cart[it.id], value: cart[it.id] * it.price }));
+  if (!sale.length) return;
+  for (const l of sale) {
+    const line = totals.lines[l.id] ||= { name: l.name, qty: 0, value: 0 };
+    line.name = l.name;
+    line.qty += l.qty;
+    line.value += l.value;
+  }
+  totals.sales++;
+  lastSale = sale;
+  cart = {};
+  save('qt.totals', totals); save('qt.last', lastSale); save('qt.cart', cart);
+  toast('Sale recorded: ' + money(sale.reduce((s, l) => s + l.value, 0)));
+  renderTill();
+};
+
+// ---- Totals ----
+function renderTotals() {
+  const rows = $('trows');
+  rows.replaceChildren();
+  // Current items first, in button order, then anything sold but since deleted.
+  const ids = [...new Set([...items.map(it => it.id), ...Object.keys(totals.lines)])];
+  let qty = 0, value = 0;
+  for (const id of ids) {
+    const it = items.find(x => x.id === id);
+    const line = totals.lines[id] || { qty: 0, value: 0 };
+    qty += line.qty; value += line.value;
+    const tr = el('tr');
+    tr.append(el('td', '', it ? it.name || 'Untitled' : line.name), el('td', 'r', line.qty), el('td', 'r', money(line.value)));
+    rows.append(tr);
+  }
+  $('tsales').textContent = totals.sales === 1 ? '1 sale' : totals.sales + ' sales';
+  $('tqty').textContent = qty;
+  $('tvalue').textContent = money(value);
+  $('undo').disabled = !lastSale;
+}
+
+$('undo').onclick = () => {
+  if (!lastSale) return;
+  const value = lastSale.reduce((s, l) => s + l.value, 0);
+  if (!confirm('Remove the last sale (' + money(value) + ') from the totals?')) return;
+  for (const l of lastSale) {
+    const line = totals.lines[l.id];
+    if (!line) continue;
+    line.qty -= l.qty;
+    line.value -= l.value;
+    if (line.qty <= 0) delete totals.lines[l.id];
+  }
+  totals.sales = Math.max(0, totals.sales - 1);
+  lastSale = null;
+  save('qt.totals', totals); save('qt.last', lastSale);
+  renderTotals();
+};
+
+$('reset').onclick = () => {
+  if (!confirm('Clear all recorded sales? Your items and prices are kept.')) return;
+  totals = { sales: 0, lines: {} };
+  lastSale = null;
+  save('qt.totals', totals); save('qt.last', lastSale);
+  renderTotals();
+};
+
+// ---- Setup ----
+function renderSetup() {
+  const rows = $('rows');
+  rows.replaceChildren();
+  items.forEach((it, i) => {
+    const row = el('div', 'row');
+    const name = el('input', 'n');
+    name.placeholder = 'Title';
+    name.value = it.name;
+    name.oninput = () => { it.name = name.value.trim(); save('qt.items', items); };
+    const price = el('input', 'p');
+    price.placeholder = '0.00';
+    price.inputMode = 'decimal';
+    price.value = it.price ? (it.price / 100).toFixed(2) : '';
+    price.oninput = () => { it.price = Math.max(0, Math.round(parseFloat(price.value) * 100) || 0); save('qt.items', items); };
+    price.onblur = () => { price.value = it.price ? (it.price / 100).toFixed(2) : ''; };
+    const up = el('button', '', '↑');
+    up.setAttribute('aria-label', 'Move up');
+    up.disabled = i === 0;
+    up.onclick = () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; save('qt.items', items); renderSetup(); };
+    const del = el('button', 'del', '✕');
+    del.setAttribute('aria-label', 'Delete');
+    del.onclick = () => {
+      if (it.name && !confirm('Delete "' + it.name + '"?')) return;
+      items.splice(i, 1);
+      delete cart[it.id];
+      save('qt.items', items); save('qt.cart', cart);
+      renderSetup();
+    };
+    row.append(name, price, up, del);
+    rows.append(row);
+  });
+}
+
+$('additem').onclick = () => {
+  items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: '', price: 0 });
+  save('qt.items', items);
+  renderSetup();
+  $('rows').lastElementChild.querySelector('input').focus();
+};
+
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1800);
+}
+
+for (const b of document.querySelectorAll('nav button')) b.onclick = () => showTab(b.dataset.tab);
+showTab(items.length ? 'till' : 'setup');
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
