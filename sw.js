@@ -1,15 +1,17 @@
 // Caches the app so it works with no signal. Bump the version to force an update.
-const CACHE = 'quicktill-v3';
+const PREFIX = 'quicktill-';
+const CACHE = PREFIX + 'v4';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
 
+// Only delete our own old caches: other apps on the same github.io origin share this cache storage.
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith(PREFIX) && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
